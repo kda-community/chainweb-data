@@ -1,10 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Chainweb.Lookups
   ( -- * Endpoints
@@ -46,6 +42,7 @@ import           ChainwebDb.Types.Block
 import           ChainwebDb.Types.Common
 import           ChainwebDb.Types.DbHash
 import           ChainwebDb.Types.Event
+import           ChainwebDb.Types.PgText
 import           ChainwebDb.Types.Signer
 import           ChainwebDb.Types.Transaction
 import           ChainwebDb.Types.Transfer
@@ -192,9 +189,7 @@ mkBlockTransactions b pl = map (mkTransaction b) $ _blockPayloadWithOutputs_tran
 -- The blockhash is the hash of the current block. A Coinbase transaction's
 -- request key is expected to the parent hash of the block it is found in.
 -- However, the source key of the event in chainweb-data database instance is
--- the current block hash and NOT the parent hash However, the source key of the
--- event in chainweb-data database instance is the current block hash and NOT
--- the parent hash.
+-- the current block hash and NOT the parent hash.
 mkBlockEvents' :: Int64 -> ChainId -> DbHash BlockHash -> BlockPayloadWithOutputs -> ([Event], [(DbHash TxHash, [Event])])
 mkBlockEvents' height cid blockhash pl =
     (mkCoinbaseEvents height cid blockhash pl, map mkPair tos)
@@ -238,8 +233,8 @@ mkTransferRows height cid@(ChainId cid') blockhash _creationTime pl eventMinHeig
         , _tr_idx = _ev_idx ev
         , _tr_modulename = _ev_module ev
         , _tr_moduleHash = _ev_moduleHash ev
-        , _tr_from_acct = fromAccount
-        , _tr_to_acct = toAccount
+        , _tr_from_acct = PgText fromAccount
+        , _tr_to_acct = PgText toAccount
         , _tr_amount = amount
         }
     getAmount :: [Value] -> Maybe KDAScientific
@@ -259,7 +254,7 @@ mkTransferRows height cid@(ChainId cid') blockhash _creationTime pl eventMinHeig
     createNonCoinBaseTransfers xs = [ transfer
       | (txhash,_,evs) <- xs
       , ev <- evs
-      , T.takeEnd 8 (_ev_qualName ev) == "TRANSFER"
+      , T.takeEnd 8 (unPgText $ _ev_qualName ev) == "TRANSFER"
       , length (unwrap (_ev_params ev)) == 3
       , transfer <- maybeToList $ mkTransfer (Just txhash) ev
       ]
@@ -355,11 +350,11 @@ mkEvent (ChainId chainid) height block requestkey ev idx = Event
     , _ev_chainid = fromIntegral chainid
     , _ev_height = height
     , _ev_idx = idx
-    , _ev_name = ename ev
-    , _ev_qualName = qname ev
-    , _ev_module = emodule ev
-    , _ev_moduleHash = emoduleHash ev
-    , _ev_paramText = T.decodeUtf8 $ toStrict $ encode $ params ev
+    , _ev_name = PgText $ ename ev
+    , _ev_qualName = PgText $ qname ev
+    , _ev_module = PgText $ emodule ev
+    , _ev_moduleHash = PgText $ emoduleHash ev
+    , _ev_paramText = PgText $ T.decodeUtf8 $ toStrict $ encode $ params ev
     , _ev_params = PgJSONB $ toList $ params ev
     }
   where
