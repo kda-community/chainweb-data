@@ -3,9 +3,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -18,12 +16,12 @@ module ChainwebDb.Types.Event where
 ------------------------------------------------------------------------------
 import           Data.Aeson
 import           Data.Int
-import           Data.Text (Text)
 import           Database.Beam
 import           Database.Beam.Postgres
 ------------------------------------------------------------------------------
 import           ChainwebDb.Types.Block
 import           ChainwebDb.Types.Common
+import           ChainwebDb.Types.PgText
 ------------------------------------------------------------------------------
 
 data EventT f = Event
@@ -32,11 +30,11 @@ data EventT f = Event
   , _ev_chainid :: C f Int64
   , _ev_height :: C f Int64
   , _ev_idx :: C f Int64
-  , _ev_qualName :: C f Text
-  , _ev_name :: C f Text
-  , _ev_module :: C f Text
-  , _ev_moduleHash :: C f Text
-  , _ev_paramText :: C f Text
+  , _ev_qualName :: C f PgText
+  , _ev_name :: C f PgText
+  , _ev_module :: C f PgText
+  , _ev_moduleHash :: C f PgText
+  , _ev_paramText :: C f PgText
   , _ev_params :: C f (PgJSONB [Value])
   }
   deriving stock (Generic)

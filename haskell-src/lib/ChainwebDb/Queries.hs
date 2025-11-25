@@ -40,6 +40,7 @@ import           ChainwebDb.Database
 import           ChainwebDb.Types.Block
 import           ChainwebDb.Types.DbHash
 import           ChainwebDb.Types.Event
+import           ChainwebDb.Types.PgText
 import           ChainwebDb.Types.Transaction
 import           ChainwebDb.Types.Transfer
 import ChainwebDb.Types.Common (ReqKeyOrCoinbase)
@@ -177,14 +178,14 @@ eventSearchCond EventSearchParams{..} ev = and_ $
   where
     searchString search = "%" <> search <> "%"
     searchCond = fromMaybeArg espSearch $ \s ->
-      (_ev_qualName ev `like_` val_ (searchString s)) ||.
-      (_ev_paramText ev `like_` val_ (searchString s))
+      (_ev_qualName ev `like_` val_ (searchString $ PgText s)) ||.
+      (_ev_paramText ev `like_` val_ (searchString $ PgText s))
     qualNameCond = fromMaybeArg espName $ \(EventName n) ->
-      _ev_qualName ev `like_` val_ (searchString n)
+      _ev_qualName ev `like_` val_ (searchString $ PgText n)
     paramCond = fromMaybeArg espParam $ \(EventParam p) ->
-      _ev_paramText ev `like_` val_ (searchString p)
+      _ev_paramText ev `like_` val_ (searchString $ PgText p)
     moduleCond = fromMaybeArg espModuleName $ \(EventModuleName m) ->
-      _ev_module ev ==. val_ m
+      _ev_module ev ==. val_ (PgText m)
     fromMaybeArg mbA f = f <$> maybeToList mbA
 
 data EventCursorT f = EventCursor
@@ -242,10 +243,10 @@ toAccountsSearchCursor Transfer{..} = EventCursor
   (asc _tr_idx)
 
 data TransferSearchParams = TransferSearchParams
-  { tspToken :: Text
+  { tspToken :: PgText
   , tspChainId :: Maybe ChainId
   , tspHeightRange :: HeightRangeParams
-  , tspAccount :: Text
+  , tspAccount :: PgText
   }
 
 transfersSearchSource ::
