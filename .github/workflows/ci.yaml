@@ -78,7 +78,7 @@ jobs:
       run: strip chainweb-data
     - uses: actions/upload-artifact@v4
       with:
-        name: chainweb-data-build-${{ matrix.os }}
+        name: chainweb-data-build-${{ matrix.os }}-${{ matrix.ghc }}
         path: chainweb-data
 
     # Test
