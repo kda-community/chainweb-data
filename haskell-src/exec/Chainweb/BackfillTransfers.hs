@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
@@ -19,6 +18,7 @@ import           ChainwebData.Env
 import           ChainwebData.Types
 import           ChainwebDb.Types.Event
 import           ChainwebDb.Types.Transfer
+import           ChainwebDb.Types.PgText
 
 import           Control.Concurrent.Async (race_)
 import           Control.Lens hiding ((<.), reuse)
@@ -109,8 +109,8 @@ createTransfer ev = do
         <*> pure (_ev_idx ev)
         <*> pure (_ev_module ev)
         <*> pure (_ev_moduleHash ev)
-        <*> from_acct
-        <*> to_acct
+        <*> (PgText <$> from_acct)
+        <*> (PgText <$> to_acct)
         <*> getAmount (unwrap $ _ev_params ev)
   where
     from_acct = _ev_params ev ^? to unwrap . ix 0 . _String

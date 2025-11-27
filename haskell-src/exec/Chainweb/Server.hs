@@ -81,6 +81,7 @@ import           ChainwebData.TxSummary
 import           ChainwebDb.Types.Block
 import           ChainwebDb.Types.Common
 import           ChainwebDb.Types.DbHash
+import           ChainwebDb.Types.PgText
 import           ChainwebDb.Types.Signer
 import           ChainwebDb.Types.Transfer
 import           ChainwebDb.Types.Transaction
@@ -391,7 +392,7 @@ toApiTxDetail tx contHist blk evs signers sigs = TxDetail
   where
     unMaybeValue = maybe Null unPgJsonb
     toTxEvent ev =
-      TxEvent (_ev_qualName ev) (unPgJsonb $ _ev_params ev)
+      TxEvent (unPgText $ _ev_qualName ev) (unPgJsonb $ _ev_params ev)
 
 getMaxBlockHeight :: LogFunctionIO Text -> Connection -> IO (Maybe BlockHeight)
 getMaxBlockHeight logger c =
@@ -511,10 +512,10 @@ accountHandler logger pool req account token chain minheight maxheight limit mbO
   continuation <- mkContinuation readEventToken mbOffset mbNext
   isBounded <- isBoundedStrategyM req
   let searchParams = TransferSearchParams
-       { tspToken = usedCoinType
+       { tspToken = PgText usedCoinType
        , tspChainId = chain
        , tspHeightRange = HeightRangeParams minheight maxheight
-       , tspAccount = account
+       , tspAccount = PgText account
        }
   liftIO $ M.with pool $ \(c, throttling) -> do
     let
@@ -531,15 +532,15 @@ accountHandler logger pool req account token chain minheight maxheight limit mbO
         continuation
         resultLimit
       return $ maybe noHeader (addHeader . mkEventToken) mbCont  $ results <&> \(tr, extras) -> TransferDetail
-        { _trDetail_token = _tr_modulename tr
+        { _trDetail_token = unPgText $ _tr_modulename tr
         , _trDetail_chain = fromIntegral $ _tr_chainid tr
         , _trDetail_height = fromIntegral $ _tr_height tr
         , _trDetail_blockHash = unDbHash $ unBlockId $ _tr_block tr
         , _trDetail_requestKey = getTxHash $ _tr_requestkey tr
         , _trDetail_idx = fromIntegral $ _tr_idx tr
         , _trDetail_amount = StringEncoded $ getKDAScientific $ _tr_amount tr
-        , _trDetail_fromAccount = _tr_from_acct tr
-        , _trDetail_toAccount = _tr_to_acct tr
+        , _trDetail_fromAccount = unPgText $ _tr_from_acct tr
+        , _trDetail_toAccount = unPgText $ _tr_to_acct tr
         , _trDetail_crossChainAccount = tseXChainAccount extras
         , _trDetail_crossChainId = fromIntegral <$> tseXChainId extras
         , _trDetail_blockTime = tseBlockTime extras
@@ -607,9 +608,9 @@ evHandler logger pool req limit mbOffset qSearch qParam qName qModuleName minhei
         resultLimit
       return $ maybe noHeader (addHeader . mkEventToken) mbCont $
         results <&> \(ev,extras) -> EventDetail
-          { _evDetail_name = _ev_qualName ev
+          { _evDetail_name = unPgText $ _ev_qualName ev
           , _evDetail_params = unPgJsonb $ _ev_params ev
-          , _evDetail_moduleHash = _ev_moduleHash ev
+          , _evDetail_moduleHash = unPgText $ _ev_moduleHash ev
           , _evDetail_chain = fromIntegral $ _ev_chainid ev
           , _evDetail_height = fromIntegral $ _ev_height ev
           , _evDetail_blockTime = eseBlockTime extras

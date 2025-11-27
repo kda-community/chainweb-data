@@ -1,10 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeApplications #-}
 
 module Chainweb.Lookups
   ( -- * Endpoints
@@ -46,6 +42,7 @@ import           ChainwebDb.Types.Block
 import           ChainwebDb.Types.Common
 import           ChainwebDb.Types.DbHash
 import           ChainwebDb.Types.Event
+import           ChainwebDb.Types.PgText
 import           ChainwebDb.Types.Signer
 import           ChainwebDb.Types.Transaction
 import           ChainwebDb.Types.Transfer
@@ -192,9 +189,7 @@ mkBlockTransactions b pl = map (mkTransaction b) $ _blockPayloadWithOutputs_tran
 -- The blockhash is the hash of the current block. A Coinbase transaction's
 -- request key is expected to the parent hash of the block it is found in.
 -- However, the source key of the event in chainweb-data database instance is
--- the current block hash and NOT the parent hash However, the source key of the
--- event in chainweb-data database instance is the current block hash and NOT
--- the parent hash.
+-- the current block hash and NOT the parent hash.
 mkBlockEvents' :: Int64 -> ChainId -> DbHash BlockHash -> BlockPayloadWithOutputs -> ([Event], [(DbHash TxHash, [Event])])
 mkBlockEvents' height cid blockhash pl =
     (mkCoinbaseEvents height cid blockhash pl, map mkPair tos)
@@ -238,8 +233,8 @@ mkTransferRows height cid@(ChainId cid') blockhash _creationTime pl eventMinHeig
         , _tr_idx = _ev_idx ev
         , _tr_modulename = _ev_module ev
         , _tr_moduleHash = _ev_moduleHash ev
-        , _tr_from_acct = fromAccount
-        , _tr_to_acct = toAccount
+        , _tr_from_acct = PgText fromAccount
+        , _tr_to_acct = PgText toAccount
         , _tr_amount = amount
         }
     getAmount :: [Value] -> Maybe KDAScientific
@@ -259,7 +254,7 @@ mkTransferRows height cid@(ChainId cid') blockhash _creationTime pl eventMinHeig
     createNonCoinBaseTransfers xs = [ transfer
       | (txhash,_,evs) <- xs
       , ev <- evs
-      , T.takeEnd 8 (_ev_qualName ev) == "TRANSFER"
+      , T.takeEnd 8 (unPgText $ _ev_qualName ev) == "TRANSFER"
       , length (unwrap (_ev_params ev)) == 3
       , transfer <- maybeToList $ mkTransfer (Just txhash) ev
       ]
@@ -290,6 +285,14 @@ mkCoinbaseEvents height cid blockhash pl = _blockPayloadWithOutputs_coinbase pl
 bpwoMinerKeys :: BlockPayloadWithOutputs -> [T.Text]
 bpwoMinerKeys = _minerData_publicKeys . _blockPayloadWithOutputs_minerData
 
+-- Remove null characters and replace them with <NUL>, because Postgres does not
+-- support null characters in JSON and will throw an error on insertion of such
+-- values.
+censorJSON :: Value -> PgJSONB Value
+censorJSON = PgJSONB . transform (over _String censorNulls)
+  where
+  censorNulls = T.replace "\0" "<NUL>"
+
 mkTransaction :: Block -> (CW.Transaction, TransactionOutput) -> Transaction
 mkTransaction b (tx,txo) = Transaction
   { _tx_requestKey = DbHash $ hashB64U $ CW._transaction_hash tx
@@ -306,16 +309,17 @@ mkTransaction b (tx,txo) = Transaction
   , _tx_pactId = DbHash . _cont_pactId <$> cnt
   , _tx_rollback = _cont_rollback <$> cnt
   , _tx_step = fromIntegral . _cont_step <$> cnt
-  , _tx_data = (PgJSONB . _cont_data <$> cnt)
-    <|> (PgJSONB <$> (exc >>= _exec_data))
+  , _tx_data = censorJSON <$>
+      ((_cont_data <$> cnt)
+      <|> (exc >>= _exec_data))
   , _tx_proof = join (_cont_proof <$> cnt)
 
   , _tx_gas = fromIntegral $ _toutGas txo
   , _tx_badResult = badres
   , _tx_goodResult = goodres
   , _tx_logs = hashB64U <$> _toutLogs txo
-  , _tx_metadata = PgJSONB <$> _toutMetaData txo
-  , _tx_continuation = PgJSONB <$> _toutContinuation txo
+  , _tx_metadata = censorJSON <$> _toutMetaData txo
+  , _tx_continuation = censorJSON <$> _toutContinuation txo
   , _tx_txid = fromIntegral <$> _toutTxId txo
   , _tx_numEvents = Just $ fromIntegral $ length $ _toutEvents txo
   }
@@ -330,8 +334,8 @@ mkTransaction b (tx,txo) = Transaction
       ExecPayload _ -> Nothing
       ContPayload c -> Just c
     (badres, goodres) = case _toutResult txo of
-      PactResult (Left v) -> (Just $ PgJSONB v, Nothing)
-      PactResult (Right v) -> (Nothing, Just $ PgJSONB v)
+      PactResult (Left v) -> (Just $ censorJSON v, Nothing)
+      PactResult (Right v) -> (Nothing, Just $ censorJSON v)
 
 mkTxEvents :: Int64 -> ChainId -> DbHash BlockHash -> (CW.Transaction,TransactionOutput) -> [Event]
 mkTxEvents height cid blk (tx,txo) = zipWith (mkEvent cid height blk (Just rk)) (_toutEvents txo) [0..]
@@ -346,11 +350,11 @@ mkEvent (ChainId chainid) height block requestkey ev idx = Event
     , _ev_chainid = fromIntegral chainid
     , _ev_height = height
     , _ev_idx = idx
-    , _ev_name = ename ev
-    , _ev_qualName = qname ev
-    , _ev_module = emodule ev
-    , _ev_moduleHash = emoduleHash ev
-    , _ev_paramText = T.decodeUtf8 $ toStrict $ encode $ params ev
+    , _ev_name = PgText $ ename ev
+    , _ev_qualName = PgText $ qname ev
+    , _ev_module = PgText $ emodule ev
+    , _ev_moduleHash = PgText $ emoduleHash ev
+    , _ev_paramText = PgText $ T.decodeUtf8 $ toStrict $ encode $ params ev
     , _ev_params = PgJSONB $ toList $ params ev
     }
   where

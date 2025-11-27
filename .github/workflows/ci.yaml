@@ -9,9 +9,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: ['9.6.3']
-        cabal: ['3.10']
-        os: ['ubuntu-20.04', 'ubuntu-22.04', 'macOS-latest']
+        ghc: ['9.10.3', '9.12.2']
+        cabal: ['latest']
+        os: ['ubuntu-22.04', 'ubuntu-24.04', 'macOS-latest']
 
     steps:
     - name: 'GitHub actions env workaround'
@@ -19,7 +19,7 @@ jobs:
 
     # Setup
     - name: Checkout repository
-      uses: actions/checkout@v1
+      uses: actions/checkout@v4
 
     # Haskell Setup
     - name: Install GHC and Cabal
@@ -32,7 +32,7 @@ jobs:
         ghc --version
         cabal --version
     # Project Setup
-    - uses: actions/cache@v2
+    - uses: actions/cache@v4
       name: Cache dist-newstyle
       with:
         path: |
@@ -45,6 +45,9 @@ jobs:
     - name: Install liblzma
       run: brew install xz # xz package contains liblzma
       if: startsWith(matrix.os, 'macOS')
+    - name: Install liblzma
+      run: sudo apt-get install -y liblzma-dev
+      if: startsWith(matrix.os, 'ubuntu-24')
 
     - name: Install postgresql
       run: brew install postgresql # needed by libpq
@@ -75,7 +78,7 @@ jobs:
       run: strip chainweb-data
     - uses: actions/upload-artifact@v4
       with:
-        name: chainweb-data-build-${{ matrix.os }}
+        name: chainweb-data-build-${{ matrix.os }}-${{ matrix.ghc }}
         path: chainweb-data
 
     # Test
