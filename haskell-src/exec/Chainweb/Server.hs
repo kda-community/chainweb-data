@@ -290,7 +290,7 @@ dbToApiTxSummary s contHist = TxSummary
   , _txSummary_continuation = unPgJsonb <$> dtsContinuation s
   , _txSummary_result = maybe TxFailed (const TxSucceeded) $ dtsGoodResult s
   , _txSummary_initialCode = chCode contHist
-  , _txSummary_previousSteps = V.toList (chSteps contHist) <$ chCode contHist
+  , _txSummary_previousSteps = V.toList (fromMaybe mempty $ chSteps contHist) <$ chCode contHist
   }
 
 searchTxs
@@ -385,7 +385,7 @@ toApiTxDetail tx contHist blk evs signers sigs = TxDetail
         , _txDetail_success = isJust $ _tx_goodResult tx
         , _txDetail_events = map toTxEvent evs
         , _txDetail_initialCode = chCode contHist
-        , _txDetail_previousSteps = V.toList (chSteps contHist) <$ chCode contHist
+        , _txDetail_previousSteps = V.toList (fromMaybe mempty $ chSteps contHist) <$ chCode contHist
         , _txDetail_signers = signers
         , _txDetail_sigs = sigs
         }

@@ -103,7 +103,7 @@ toDbTxSummary Transaction{..} = DbTxSummary
 
 data ContinuationHistoryT f = ContinuationHistory
   { chCode :: C f (Maybe Text)
-  , chSteps :: C f (Vector Text)
+  , chSteps :: C f (Maybe (Vector Text))
   } deriving (Generic, Beamable)
 
 type ContinuationHistory = ContinuationHistoryT Identity
